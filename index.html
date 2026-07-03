@@ -1,0 +1,301 @@
+<script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.1.0/mqttws31.min.js"></script>
+<style>
+  :root {
+    --bg: #14161c;
+    --panel: #1c1f28;
+    --slate: #35414f;
+    --slate-active: #4a7a8c;
+    --accent: #ff2d55;
+    --accent-dim: #ff2d5533;
+    --text: #eef1f5;
+    --text-dim: #8a91a0;
+    --ok: #35c46a;
+    --err: #ff5a5a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+  .app {
+    width: 100%;
+    max-width: 560px;
+  }
+  .titlebar {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 18px;
+    padding: 0 4px;
+  }
+  .titlebar h1 {
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: 0.2px;
+    margin: 0;
+  }
+  .status {
+    font-size: 13px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--err);
+    box-shadow: 0 0 8px var(--err);
+    transition: all .2s;
+  }
+  .dot.ok { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
+
+  .distance-panel {
+    background: var(--panel);
+    border: 1px solid #2a2f3a;
+    border-radius: 14px;
+    padding: 18px 20px;
+    margin-bottom: 20px;
+  }
+  .distance-label {
+    font-size: 11px;
+    letter-spacing: 1.5px;
+    color: var(--text-dim);
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+  .distance-value {
+    font-size: 40px;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+  }
+  .distance-value span {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text-dim);
+    margin-left: 6px;
+  }
+  .distance-meta {
+    margin-top: 6px;
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+
+  .layout {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .dpad {
+    display: grid;
+    grid-template-columns: 76px 76px 76px;
+    grid-template-rows: 76px 76px 76px;
+    gap: 8px;
+    justify-content: center;
+  }
+  .pad-btn {
+    background: var(--slate);
+    border: none;
+    border-radius: 14px;
+    color: var(--text);
+    font-size: 26px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: none;
+    transition: background .08s, transform .08s;
+  }
+  .pad-btn:active,
+  .pad-btn.pressed {
+    background: var(--slate-active);
+    transform: scale(0.94);
+  }
+  .pad-up    { grid-column: 2; grid-row: 1; }
+  .pad-left  { grid-column: 1; grid-row: 2; }
+  .pad-right { grid-column: 3; grid-row: 2; }
+  .pad-down  { grid-column: 2; grid-row: 3; }
+  .pad-center{ grid-column: 2; grid-row: 2; background: transparent; }
+
+  .side-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 130px;
+  }
+  .stop-btn {
+    background: var(--accent);
+    border: none;
+    border-radius: 12px;
+    color: white;
+    font-weight: 800;
+    font-size: 14px;
+    letter-spacing: 0.5px;
+    padding: 16px 0;
+    cursor: pointer;
+  }
+  .stop-btn:active { filter: brightness(0.85); }
+
+  .connect-btn {
+    background: transparent;
+    border: 1px solid #3a4150;
+    border-radius: 12px;
+    color: var(--text-dim);
+    font-size: 13px;
+    font-weight: 600;
+    padding: 12px 0;
+    cursor: pointer;
+  }
+  .connect-btn:hover { border-color: var(--slate-active); color: var(--text); }
+
+  .hint {
+    text-align: center;
+    color: var(--text-dim);
+    font-size: 11.5px;
+    margin-top: 18px;
+  }
+</style>
+
+<div class="app">
+  <div class="titlebar">
+    <h1>Coche Control</h1>
+    <div class="status">
+      <div class="dot" id="dot"></div>
+      <span id="statusText">Desconectado</span>
+    </div>
+  </div>
+
+  <div class="distance-panel">
+    <div class="distance-label">DISTANCIA DETECTADA</div>
+    <div class="distance-value" id="distValue">-- <span>cm</span></div>
+    <div class="distance-meta" id="distMeta">Sin datos todavía</div>
+  </div>
+
+  <div class="layout">
+    <div class="dpad">
+      <button class="pad-btn pad-up" data-cmd="adelante">▲</button>
+      <button class="pad-btn pad-left" data-cmd="izquierda">◀</button>
+      <div class="pad-center"></div>
+      <button class="pad-btn pad-right" data-cmd="derecha">▶</button>
+      <button class="pad-btn pad-down" data-cmd="atras">▼</button>
+    </div>
+    <div class="side-controls">
+      <button class="stop-btn" id="stopBtn">STOP</button>
+      <button class="connect-btn" id="connectBtn">Conectarse</button>
+    </div>
+  </div>
+
+  <div class="hint">Mantén presionado para moverte · suelta para detener</div>
+</div>
+
+<script>
+  // ---------- CONFIG MQTT (mismo broker que el ESP32) ----------
+  const MQTT_HOST = "d79bab6b77844ca680f5f68f06d53bd1.s1.eu.hivemq.cloud";
+  const MQTT_PORT = 8000;       // puerto WebSocket
+  const MQTT_PATH = "/mqtt";
+  const MQTT_USER = "cochesp";
+  const MQTT_PASS = "clave1234";
+
+  const TOPIC_COMANDOS = "coche1/comandos";
+  const TOPIC_SENSOR   = "coche1/sensor";
+
+  const dot = document.getElementById("dot");
+  const statusText = document.getElementById("statusText");
+  const connectBtn = document.getElementById("connectBtn");
+  const distValue = document.getElementById("distValue");
+  const distMeta = document.getElementById("distMeta");
+
+  let client = null;
+  let connected = false;
+
+  function setStatus(estado, texto) {
+    dot.classList.toggle("ok", estado === "ok");
+    statusText.textContent = texto;
+  }
+
+  function conectar() {
+    setStatus("conectando", "Conectando...");
+    const clientId = "web-control-" + Math.random().toString(16).slice(2);
+    client = new Paho.MQTT.Client(MQTT_HOST, MQTT_PORT, MQTT_PATH, clientId);
+
+    client.onConnectionLost = () => {
+      connected = false;
+      setStatus("err", "Desconectado");
+    };
+
+    client.onMessageArrived = (msg) => {
+      if (msg.destinationName === TOPIC_SENSOR) {
+        const cm = parseFloat(msg.payloadString);
+        if (!isNaN(cm)) {
+          distValue.innerHTML = cm.toFixed(1) + " <span>cm</span>";
+          distMeta.textContent = "Actualizado " + new Date().toLocaleTimeString();
+        }
+      }
+    };
+
+    client.connect({
+      useSSL: true,
+      userName: MQTT_USER,
+      password: MQTT_PASS,
+      onSuccess: () => {
+        connected = true;
+        setStatus("ok", "Conectado");
+        client.subscribe(TOPIC_SENSOR);
+      },
+      onFailure: (err) => {
+        connected = false;
+        setStatus("err", "Error de conexión");
+        console.error(err);
+      }
+    });
+  }
+
+  connectBtn.addEventListener("click", conectar);
+
+  function enviarComando(cmd) {
+    if (!connected) return;
+    const msg = new Paho.MQTT.Message(cmd);
+    msg.destinationName = TOPIC_COMANDOS;
+    client.send(msg);
+  }
+
+  // ---------- Botones tipo "mantener presionado" ----------
+  document.querySelectorAll(".pad-btn[data-cmd]").forEach((btn) => {
+    const cmd = btn.dataset.cmd;
+
+    const activar = (e) => {
+      e.preventDefault();
+      btn.classList.add("pressed");
+      enviarComando(cmd);
+    };
+    const soltar = (e) => {
+      e.preventDefault();
+      btn.classList.remove("pressed");
+      enviarComando("stop");
+    };
+
+    btn.addEventListener("mousedown", activar);
+    btn.addEventListener("touchstart", activar);
+    btn.addEventListener("mouseup", soltar);
+    btn.addEventListener("mouseleave", soltar);
+    btn.addEventListener("touchend", soltar);
+    btn.addEventListener("touchcancel", soltar);
+  });
+
+  document.getElementById("stopBtn").addEventListener("click", () => enviarComando("stop"));
+
+  // Auto-conectar al cargar la página
+  window.addEventListener("load", conectar);
+</script>
