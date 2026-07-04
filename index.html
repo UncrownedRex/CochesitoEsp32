@@ -228,7 +228,12 @@
   function conectar() {
     setStatus("conectando", "Conectando...");
     const clientId = "web-control-" + Math.random().toString(16).slice(2);
-    client = new Paho.MQTT.Client(MQTT_HOST, MQTT_PORT, MQTT_PATH, clientId);
+    client = new Paho.Client(
+    MQTT_HOST,
+    MQTT_PORT,
+    MQTT_PATH,
+    clientId
+);
 
     client.onConnectionLost = () => {
       connected = false;
@@ -266,7 +271,7 @@
 
   function enviarComando(cmd) {
     if (!connected) return;
-    const msg = new Paho.MQTT.Message(cmd);
+    const msg = new Paho.Message(cmd);
     msg.destinationName = TOPIC_COMANDOS;
     client.send(msg);
   }
