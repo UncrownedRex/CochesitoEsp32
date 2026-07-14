@@ -263,7 +263,7 @@
     });
   }
 
-  connectBtn.addEventListener("click", conectar);
+  connectBtn.addEventListener("click", () => esperarPahoYConectar(20));
 
   function enviarComando(cmd) {
     if (!connected) return;
@@ -298,6 +298,17 @@
   document.getElementById("stopBtn").addEventListener("click", () => enviarComando("stop"));
   document.getElementById("claxonBtn").addEventListener("click", () => enviarComando("pitido"));
 
-  // Auto-conectar al cargar la página
-  window.addEventListener("load", conectar);
+  // Auto-conectar al cargar la página, esperando a que Paho esté listo
+  function esperarPahoYConectar(intentos) {
+    if (typeof Paho !== "undefined" && Paho.MQTT) {
+      conectar();
+    } else if (intentos > 0) {
+      setStatus("conectando", "Cargando librería MQTT...");
+      setTimeout(() => esperarPahoYConectar(intentos - 1), 300);
+    } else {
+      setStatus("err", "No se pudo cargar Paho MQTT");
+      console.error("Paho no se cargó tras varios intentos. Revisa tu conexión o si el CDN está bloqueado.");
+    }
+  }
+  window.addEventListener("load", () => esperarPahoYConectar(20));
 </script>
